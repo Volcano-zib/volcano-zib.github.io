@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Store info</title><script src="config.js"></script>
+<style>
+:root{--bg:#fff;--fg:#111;--mut:#6b6b6b;--line:#e4e4e4;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0b;--fg:#f2f2f2;--mut:#9a9a9a;--line:#2a2a2a}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px 16px 48px}a{color:var(--fg)}h2{margin-top:36px;border-top:1px solid var(--line);padding-top:20px}.mut{color:var(--mut)}
+.logo{font-weight:800;font-size:22px;letter-spacing:.2em;text-decoration:none}
+</style></head><body><main>
+<p><a class="logo" href="index.html" id="lg"></a></p>
+<h2 id="refund">Refund &amp; Exchange Policy</h2><div id="r"></div>
+<h2 id="shipping">Shipping Policy</h2><div id="s"></div>
+<h2 id="contact">Contact</h2><div id="c"></div>
+<script>
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+document.getElementById("lg").textContent=CFG.BRAND;
+document.getElementById("r").innerHTML=`<p>You can request an exchange within <b>${esc(CFG.EXCHANGE_DAYS)} days</b> of receiving your order.</p><p>Items must be unworn, unwashed and in their original condition with the tags attached. Underwear and socks packs cannot be exchanged once opened.</p><p>To request an exchange, contact us with your order number. If the item arrived damaged or wrong, tell us as soon as you receive it and we’ll sort it out.</p>`;
+document.getElementById("s").innerHTML=`<p>We deliver across Egypt. Delivery usually takes <b>${esc(CFG.SHIPPING_DAYS)}</b> after your order is confirmed.</p><p>Shipping is free above the amount shown in the store; otherwise a flat shipping fee applies at checkout.</p><p>We’ll call you on the phone number you give at checkout to confirm delivery, so please make sure it’s correct.</p>`;
+const c=[];if(CFG.CONTACT_PHONE)c.push(`Phone: <a href="tel:${esc(CFG.CONTACT_PHONE)}">${esc(CFG.CONTACT_PHONE)}</a>`);
+if(CFG.CONTACT_EMAIL)c.push(`Email: <a href="mailto:${esc(CFG.CONTACT_EMAIL)}">${esc(CFG.CONTACT_EMAIL)}</a>`);
+if(CFG.INSTAGRAM_URL)c.push(`<a href="${esc(CFG.INSTAGRAM_URL)}" target="_blank" rel="noopener">Instagram</a>`);
+if(CFG.TIKTOK_URL)c.push(`<a href="${esc(CFG.TIKTOK_URL)}" target="_blank" rel="noopener">TikTok</a>`);
+document.getElementById("c").innerHTML=c.length?`<p>${c.join("<br>")}</p>`:'<p class="mut">Message us on our social pages.</p>';
+</script></main></body></html>

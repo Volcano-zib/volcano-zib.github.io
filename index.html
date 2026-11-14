@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VOLCANO</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--bg:#fff;--fg:#111;--mut:#6b6b6b;--line:#e4e4e4;--card:#f1f1f1;--ac:#111;--act:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0b;--fg:#f2f2f2;--mut:#9a9a9a;--line:#2a2a2a;--card:#1a1a1a;--ac:#f2f2f2;--act:#111}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.bar{background:var(--ac);color:var(--act);text-align:center;font-size:12px;padding:6px;letter-spacing:.08em}
+header{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 16px}
+.logo{font-weight:800;font-size:24px;letter-spacing:.2em}
+button,input,select,textarea{font:inherit;color:inherit}
+.btn{background:var(--ac);color:var(--act);border:0;padding:10px 16px;cursor:pointer;font-weight:600}.btn.o{background:none;color:var(--fg);border:1px solid var(--line)}.btn:disabled{opacity:.5;cursor:default}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+.card{cursor:pointer}.ph{aspect-ratio:3/4;background:var(--card);display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-weight:700;letter-spacing:.06em;position:relative;overflow:hidden}
+.ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.tag{position:absolute;top:8px;left:8px;background:var(--ac);color:var(--act);font-size:11px;padding:2px 8px;z-index:1}
+.old{text-decoration:line-through;color:var(--mut);margin-left:6px}.mut{color:var(--mut)}.pn{margin-top:8px;font-weight:600;font-size:14px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:40;justify-content:flex-end}.ov.on{display:flex}
+.pn2{background:var(--bg);width:min(440px,100%);height:100%;overflow:auto;padding:18px;padding-top:calc(18px + env(safe-area-inset-top,0px))}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+input,select,textarea{width:100%;padding:10px;background:var(--bg);border:1px solid var(--line);margin:4px 0 10px}label{font-size:12px;color:var(--mut)}
+.sizes{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.sizes button{border:1px solid var(--line);background:none;padding:6px 12px;cursor:pointer}.sizes button.on{background:var(--ac);color:var(--act)}
+.note{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ac);color:var(--act);padding:10px 16px;z-index:60;display:none;max-width:90%}
+@media (max-width:600px){.grid{grid-template-columns:repeat(2,1fr);gap:10px}main{padding:12px}.pn2{width:100%}.logo{font-size:20px}}
+input,select,textarea{font-size:16px}.btn{min-height:44px}.sizes button{min-height:40px;min-width:44px}
+footer{border-top:1px solid var(--line);margin-top:32px;padding:24px 16px calc(24px + env(safe-area-inset-bottom,0px));text-align:center}
+footer a{color:var(--fg);margin:0 14px;font-weight:600;text-decoration:none;letter-spacing:.06em}
+.chk{display:flex;align-items:center;gap:8px;margin:4px 0 12px}.chk input{width:auto;margin:0}.chk label{font-size:14px;color:var(--fg)}
+</style></head><body>
+<div class="bar" id="bar"></div>
+<header><div class="logo">VOLCANO</div><button class="btn" onclick="openCart()">Cart (<span id="cc">0</span>)</button></header>
+<main><div class="grid" id="grid"><p class="mut">Loading…</p></div></main>
+<footer id="ft"></footer>
+<div class="ov" id="ov" onclick="if(event.target===this)closeOv()"><div class="pn2" id="pn"></div></div>
+<div class="note" id="note"></div>
+<script>
+let S={products:[],freeFrom:2500,shipFee:100,payments:[],govs:[]},cart=[],size="";
+try{cart=JSON.parse(localStorage.getItem("vc")||"[]")}catch(e){}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=n=>"LE "+Number(n).toLocaleString("en-US");
+const save=()=>{try{localStorage.setItem("vc",JSON.stringify(cart))}catch(e){}};
+function note(t){const n=$("#note");n.textContent=t;n.style.display="block";clearTimeout(note.t);note.t=setTimeout(()=>n.style.display="none",3500)}
+const openOv=h=>{$("#pn").innerHTML=h;$("#ov").classList.add("on")},closeOv=()=>$("#ov").classList.remove("on");
+const img=p=>p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`:esc(p.name);
+const sb=window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
+S.payments=["Cash on delivery","InstaPay","Vodafone Cash"];S.govs=["Cairo","Giza","Alexandria","Qalyubia","Dakahlia","Sharqia","Gharbia","Monufia","Beheira","Other"];S.social={instagram:CFG.INSTAGRAM_URL,tiktok:CFG.TIKTOK_URL};
+async function load(){
+  if(/YOUR-/.test(CFG.SUPABASE_URL)){$("#grid").innerHTML='<p class="mut">Store not set up yet: add your Supabase details in config.js.</p>';return}
+  try{
+    const [p,st]=await Promise.all([sb.from("products").select("*").order("id",{ascending:false}),sb.from("settings").select("*").eq("id",1).single()]);
+    if(p.error||st.error)throw p.error||st.error;
+    S.products=p.data.map(r=>({id:r.id,name:r.name,price:r.price,oldPrice:r.old_price,sizes:r.sizes,image:r.image,soldOut:r.sold_out}));
+    S.freeFrom=st.data.free_from;S.shipFee=st.data.ship_fee;
+  }catch(e){$("#grid").innerHTML='<p class="mut">Couldn’t load products. Please refresh.</p>';return}
+  $("#bar").textContent=`FREE SHIPPING FOR ORDERS ABOVE ${money(S.freeFrom)}`;
+  cart=cart.filter(c=>S.products.some(p=>p.id===c.id&&!p.soldOut));
+  $("#grid").innerHTML=S.products.map(p=>`<div class="card" onclick="openProd(${p.id})"><div class="ph">${p.soldOut?'<span class="tag">SOLD OUT</span>':p.oldPrice?'<span class="tag">SALE</span>':""}${img(p)}</div><div class="pn">${esc(p.name)}</div><div>${money(p.price)}${p.oldPrice?`<span class="old">${money(p.oldPrice)}</span>`:""}</div></div>`).join("")||'<p class="mut">No products yet.</p>';
+  const so=S.social||{};$("#ft").innerHTML=[["Instagram",so.instagram],["TikTok",so.tiktok]].filter(x=>x[1]).map(x=>`<a href="${esc(x[1])}" target="_blank" rel="noopener">${x[0]}</a>`).join("")+'<div style="margin-top:12px;font-size:13px"><a href="info.html#refund">Refund &amp; Exchange</a><a href="info.html#shipping">Shipping</a><a href="info.html#contact">Contact</a></div><div class="mut" style="margin-top:10px;font-size:12px">© '+esc(CFG.BRAND)+'</div>';
+  count()}
+const count=()=>$("#cc").textContent=cart.reduce((a,c)=>a+c.qty,0);
+function openProd(id){const p=S.products.find(x=>x.id===id);size=p.sizes[0];
+  openOv(`<button class="btn o" onclick="closeOv()">Close</button><h2>${esc(p.name)}</h2><div class="ph" style="max-height:360px">${img(p)}</div><p><b>${money(p.price)}</b>${p.oldPrice?`<span class="old">${money(p.oldPrice)}</span>`:""}</p><label>Size</label><div class="sizes">${p.sizes.map((s,i)=>`<button class="${i?"":"on"}" data-s="${esc(s)}" onclick="size=this.dataset.s;[...this.parentNode.children].forEach(b=>b.classList.remove('on'));this.classList.add('on')">${esc(s)}</button>`).join("")}</div><button class="btn" style="width:100%" ${p.soldOut?"disabled":""} onclick="add(${id})">${p.soldOut?"Sold out":"Add to cart"}</button>`)}
+function add(id){const p=S.products.find(x=>x.id===id),l=cart.find(c=>c.id===id&&c.size===size);l?l.qty=Math.min(20,l.qty+1):cart.push({id,name:p.name,price:p.price,size,qty:1});save();count();closeOv();note("Added to cart")}
+const sub=()=>cart.reduce((a,c)=>a+c.price*c.qty,0),ship=()=>sub()>=S.freeFrom?0:S.shipFee;
+function openCart(){
+  if(!cart.length)return openOv('<button class="btn o" onclick="closeOv()">Close</button><h2>Your cart</h2><p class="mut">Your cart is empty.</p>');
+  openOv(`<button class="btn o" onclick="closeOv()">Close</button><h2>Your cart</h2>`+cart.map((c,i)=>`<div class="row"><div>${esc(c.name)}<div class="mut">${esc(c.size)} · ${money(c.price)}</div></div><div><button class="btn o" onclick="q(${i},-1)">−</button> ${c.qty} <button class="btn o" onclick="q(${i},1)">+</button></div></div>`).join("")+`<div class="row"><span>Subtotal</span><b>${money(sub())}</b></div><div class="row"><span>Shipping</span><span>${ship()?money(ship()):"Free"}</span></div><button class="btn" style="width:100%;margin-top:12px" onclick="checkout()">Checkout</button>`)}
+function q(i,d){cart[i].qty=Math.min(20,cart[i].qty+d);if(cart[i].qty<1)cart.splice(i,1);save();count();openCart()}
+function saved(){try{return JSON.parse(localStorage.getItem("vinfo")||"{}")}catch(e){return{}}}
+function checkout(){const i=saved(),op=(a,v)=>a.map(g=>`<option ${g===v?"selected":""}>${esc(g)}</option>`).join("");
+  openOv(`<button class="btn o" onclick="openCart()">Back</button><h2>Checkout</h2><label>Full name</label><input id="f_n" autocomplete="name" value="${esc(i.name)}"><label>Email (optional)</label><input id="f_e" type="email" autocomplete="email" value="${esc(i.email)}"><label>Phone</label><input id="f_p" type="tel" inputmode="tel" autocomplete="tel" value="${esc(i.phone)}"><label>Governorate</label><select id="f_g">${op(S.govs,i.gov)}</select><label>Address</label><textarea id="f_a" rows="3" autocomplete="street-address">${esc(i.address)}</textarea><label>Payment</label><select id="f_m">${op(S.payments,i.payment)}</select><div class="chk"><input type="checkbox" id="f_r" checked><label for="f_r">Save my details on this device for next time</label></div><div class="row"><span>Total</span><b>${money(sub()+ship())}</b></div><button class="btn" id="po" style="width:100%;margin-top:12px" onclick="place()">Place order</button>`)}
+async function place(){const v=id=>$("#"+id).value.trim(),b=$("#po"),rem=$("#f_r").checked;
+  if(!v("f_n")||!v("f_p")||!v("f_a"))return note("Please fill in name, phone and address");
+  const info={name:v("f_n"),email:v("f_e"),phone:v("f_p"),gov:v("f_g"),address:v("f_a"),payment:v("f_m")};
+  b.disabled=true;
+  const {data,error}=await sb.rpc("place_order",{p_name:info.name,p_email:info.email,p_phone:info.phone,p_gov:info.gov,p_address:info.address,p_payment:info.payment,p_items:cart.map(c=>({id:c.id,size:c.size,qty:c.qty}))});
+  if(error){b.disabled=false;return note(error.message||"Something went wrong, please try again")}
+  try{rem?localStorage.setItem("vinfo",JSON.stringify(info)):localStorage.removeItem("vinfo")}catch(e){}
+  cart=[];save();count();
+  const how=info.payment==="InstaPay"?(CFG.INSTAPAY?`Please transfer <b>${money(data.total)}</b> via InstaPay to <b>${esc(CFG.INSTAPAY)}</b> and keep the receipt. We’ll confirm your order once we receive it.`:"We’ll contact you with the InstaPay details."):info.payment==="Vodafone Cash"?(CFG.VODAFONE_CASH?`Please send <b>${money(data.total)}</b> by Vodafone Cash to <b>${esc(CFG.VODAFONE_CASH)}</b> and keep the receipt. We’ll confirm your order once we receive it.`:"We’ll contact you with the Vodafone Cash details."):"You’ll pay when your order arrives.";
+  openOv(`<h2>Order placed ✓</h2><p>Thank you! Your order number is <b>${esc(data.id)}</b>.</p><p>${how}</p>${info.email?'<p class="mut">We’ll email you a confirmation.</p>':""}<button class="btn" onclick="closeOv()">Continue shopping</button>`)}
+load();
+</script></body></html>

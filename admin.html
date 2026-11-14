@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow"><title>Admin</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--bg:#fff;--fg:#111;--mut:#6b6b6b;--line:#e4e4e4;--ac:#111;--act:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0b;--fg:#f2f2f2;--mut:#9a9a9a;--line:#2a2a2a;--ac:#f2f2f2;--act:#111}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px}button,input,select{font:inherit;color:inherit}
+.btn{background:var(--ac);color:var(--act);border:0;padding:10px 14px;cursor:pointer;font-weight:600;min-height:40px}.btn.o{background:none;color:var(--fg);border:1px solid var(--line)}
+input,select{width:100%;padding:10px;background:var(--bg);border:1px solid var(--line);margin:4px 0 10px;font-size:16px}label{font-size:12px;color:var(--mut)}
+.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:680px}td,th{border-bottom:1px solid var(--line);padding:8px;text-align:left;font-size:13px;vertical-align:top}
+.form{max-width:420px}.mut{color:var(--mut)}.t{width:44px;height:56px;object-fit:cover;background:var(--line)}.top{display:flex;justify-content:space-between;align-items:center}
+.note{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ac);color:var(--act);padding:10px 16px;display:none;max-width:90%;z-index:9}
+</style></head><body><main id="app"></main><div class="note" id="note"></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=n=>"LE "+Number(n).toLocaleString("en-US");
+const STAT=["New","Awaiting payment","Confirmed","Shipped","Delivered","Cancelled"];
+const sb=window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
+let P=[],O=[],ST={ship_fee:100,free_from:2500},editing=null,img="";
+function note(t){const n=$("#note");n.textContent=t;n.style.display="block";clearTimeout(note.t);note.t=setTimeout(()=>n.style.display="none",4000)}
+const guard=f=>async(...a)=>{try{await f(...a)}catch(e){note(e.message||"Something went wrong")}};
+function login(msg){$("#app").innerHTML=`<div class="form"><h2>Admin login</h2>${msg?`<p class="mut">${esc(msg)}</p>`:""}<label>Email</label><input id="em" type="email" autocomplete="username"><label>Password</label><input id="pw" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"><button class="btn" onclick="doLogin()">Log in</button></div>`}
+const doLogin=guard(async()=>{const {error}=await sb.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});if(error)throw error;start()});
+const logout=guard(async()=>{await sb.auth.signOut();login()});
+const start=guard(async()=>{
+  if(/YOUR-/.test(CFG.SUPABASE_URL))return login("Add your Supabase details in config.js first.");
+  const {data}=await sb.auth.getSession();if(!data.session)return login();
+  const a=await sb.rpc("is_admin");if(a.data!==true){await sb.auth.signOut();return login("This account is not an admin.")}
+  show()});
+const show=guard(async()=>{
+  const [p,o,s]=await Promise.all([sb.from("products").select("*").order("id",{ascending:false}),sb.from("orders").select("*").order("created_at",{ascending:false}),sb.from("settings").select("*").eq("id",1).single()]);
+  if(p.error||o.error||s.error)throw p.error||o.error||s.error;
+  P=p.data;O=o.data;ST=s.data;
+  $("#app").innerHTML=`<div class="top"><h2>${editing?"Edit product":"Add product"}</h2><button class="btn o" onclick="logout()">Log out</button></div>
+  <div class="form"><label>Name</label><input id="n"><label>Price (LE)</label><input id="p" type="number" inputmode="numeric"><label>Old price (optional)</label><input id="o" type="number" inputmode="numeric"><label>Sizes (comma separated)</label><input id="s" value="S,M,L,XL"><label>Image</label><input id="f" type="file" accept="image/jpeg,image/png,image/webp" onchange="up(this.files[0])"><div id="pv"></div><button class="btn" onclick="saveP()">${editing?"Save":"Add"}</button> ${editing?'<button class="btn o" onclick="editing=null;img=\'\';show()">Cancel</button>':""}</div>
+  <h2>Products (${P.length})</h2><div class="scroll"><table><tr><th></th><th>Name</th><th>Price</th><th>Stock</th><th></th></tr>${P.map(x=>`<tr><td>${x.image?`<img class="t" src="${esc(x.image)}" alt="">`:""}</td><td>${esc(x.name)}</td><td>${money(x.price)}</td><td><button class="btn o" onclick="toggle(${x.id})">${x.sold_out?"Sold out":"In stock"}</button></td><td><button class="btn o" onclick="edit(${x.id})">Edit</button> <button class="btn o" onclick="del(${x.id})">Delete</button></td></tr>`).join("")}</table></div>
+  <h2>Shipping</h2><div class="form"><label>Shipping fee (LE)</label><input id="sf" type="number" value="${ST.ship_fee}"><label>Free shipping from (LE)</label><input id="ff" type="number" value="${ST.free_from}"><button class="btn" onclick="saveS()">Save shipping</button></div>
+  <h2>Orders (${O.length})</h2><div class="scroll"><table><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total / payment</th><th>Status</th></tr>${O.map(x=>`<tr><td>${esc(x.id)}<div class="mut">${new Date(x.created_at).toLocaleString("en-GB")}</div></td><td>${esc(x.name)}<div class="mut">${esc(x.phone)}${x.email?" · "+esc(x.email):""} · ${esc(x.gov)}<br>${esc(x.address)}</div></td><td>${x.items.map(i=>`${esc(i.n)} (${esc(i.s)}) ×${i.q}`).join("<br>")}</td><td>${money(x.total)}<div class="mut">${esc(x.payment)}</div>${x.paid?'<div>✓ Paid</div>':`<button class="btn o" style="margin-top:6px" onclick="paid('${esc(x.id)}')">Mark as paid</button>`}</td><td><select style="margin:0" onchange="setSt('${esc(x.id)}',this.value)">${STAT.map(t=>`<option ${t===x.status?"selected":""}>${t}</option>`).join("")}</select></td></tr>`).join("")}</table></div>`;
+  if(editing){const x=P.find(r=>r.id===editing);$("#n").value=x.name;$("#p").value=x.price;$("#o").value=x.old_price||"";$("#s").value=x.sizes.join(",");img=x.image;pv()}});
+const pv=()=>$("#pv").innerHTML=img?`<img class="t" src="${esc(img)}" alt="">`:"";
+const up=guard(async f=>{if(!f)return;const ext={"image/jpeg":"jpg","image/png":"png","image/webp":"webp"}[f.type];if(!ext)throw new Error("JPG, PNG or WebP only");if(f.size>5e6)throw new Error("Image is over 5 MB");
+  const path=crypto.randomUUID()+"."+ext,{error}=await sb.storage.from("products").upload(path,f,{contentType:f.type});if(error)throw error;
+  img=sb.storage.from("products").getPublicUrl(path).data.publicUrl;pv();note("Image uploaded")});
+const saveP=guard(async()=>{const name=$("#n").value.trim(),price=parseInt($("#p").value),old=parseInt($("#o").value)||null,sizes=$("#s").value.split(",").map(x=>x.trim()).filter(Boolean);
+  if(!name||!(price>0))throw new Error("Name and price are required");if(!sizes.length)throw new Error("Add at least one size");
+  const row={name,price,old_price:old,sizes,image:img},r=editing?await sb.from("products").update(row).eq("id",editing):await sb.from("products").insert(row);
+  if(r.error)throw r.error;editing=null;img="";note("Saved");show()});
+const edit=id=>{editing=id;show();scrollTo(0,0)};
+const toggle=guard(async id=>{const x=P.find(r=>r.id===id),{error}=await sb.from("products").update({sold_out:!x.sold_out}).eq("id",id);if(error)throw error;show()});
+const del=guard(async id=>{if(!confirm("Delete this product?"))return;const {error}=await sb.from("products").delete().eq("id",id);if(error)throw error;show()});
+const saveS=guard(async()=>{const {error}=await sb.from("settings").update({ship_fee:parseInt($("#sf").value)||0,free_from:parseInt($("#ff").value)||0}).eq("id",1);if(error)throw error;note("Saved")});
+const setSt=guard(async(id,s)=>{const {error}=await sb.from("orders").update({status:s}).eq("id",id);if(error)throw error;note("Updated")});
+const paid=guard(async id=>{const x=O.find(r=>r.id===id),{error}=await sb.from("orders").update({paid:true,status:x.status==="Awaiting payment"?"Confirmed":x.status}).eq("id",id);if(error)throw error;note("Marked as paid"+(x.email?" – confirmation email is being sent":""));show()});
+start();
+</script></body></html>
